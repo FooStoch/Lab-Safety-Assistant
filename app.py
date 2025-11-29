@@ -1,30 +1,27 @@
-# app.py (updated)
+# app.py — updated to prevent duplicate messages and show intro once
 import os
 import base64
 import mimetypes
 import json
 import streamlit as st
-from pathlib import Path
 from typing import Optional, Dict, Any
 
-# import your assistant module
-import lab_safety
+import lab_safety  # your module
 
-# ---- Page config ----
+# Page config
 st.set_page_config(page_title="Lab Safety Assistant", layout="wide")
 
-# ---- Secrets / config ----
+# Secrets and API key override
 if "OPENROUTER_API_KEY" not in st.secrets:
-    st.warning("OpenRouter API key not found in Streamlit secrets. Add OPENROUTER_API_KEY to secrets.toml.")
+    st.warning("OPENROUTER_API_KEY not found in Streamlit secrets.")
 OPENROUTER_KEY = st.secrets.get("OPENROUTER_API_KEY", None)
 if OPENROUTER_KEY:
     lab_safety.OPENROUTER_API_KEY = OPENROUTER_KEY
 
-# default docs dir
-DEFAULT_DOCS = "./output_txt"
-DOCS_DIR = DEFAULT_DOCS  # we assume you set OUTPUT_DIR in lab_safety.py to "./output_txt"
+# Assume output_txt is set as OUTPUT_DIR in lab_safety.py (./output_txt)
+DOCS_DIR = getattr(lab_safety, "OUTPUT_DIR", "./output_txt")
 
-# ---- Helpers ----
+# Helpers
 def file_to_data_url(uploaded) -> Optional[str]:
     if uploaded is None:
         return None
@@ -36,38 +33,43 @@ def file_to_data_url(uploaded) -> Optional[str]:
     return f"data:{mime};base64,{b64}"
 
 def content_key(obj):
-    """Create a canonical key for message content for simple equality checks."""
+    """
+    Canonical key for message content. Use for deduplication.
+    """
     try:
         if isinstance(obj, str):
-            return obj
+            return obj.strip()
         return json.dumps(obj, sort_keys=True)
     except Exception:
         return str(obj)
 
-# ---- Initialize assistant (cached) ----
+# Initialize assistant once (cached resource to avoid reloading heavy TF-IDF)
 @st.cache_resource(show_spinner=False)
 def init_assistant(docs_dir: str):
     return lab_safety.LabSafetyAssistantV3(docs_dir=docs_dir)
 
 if not os.path.isdir(DOCS_DIR):
-    st.sidebar.error(f"Documents folder not found at {DOCS_DIR}. Put output_txt/ in the repo root or update lab_safety.OUTPUT_DIR")
+    st.sidebar.error(f"Documents folder not found at {DOCS_DIR}. Ensure output_txt/ is in repo root or update lab_safety.OUTPUT_DIR")
 
-with st.spinner("Loading SDS documents and vectorizers..."):
+with st.spinner("Loading documents and building vectorizers..."):
     assistant = init_assistant(DOCS_DIR)
 
-# ---- Session state init ----
+# Session state initialization
 if "messages" not in st.session_state:
-    # initialize messages with assistant intro (only once)
-    intro = assistant.chat_history[0]["content"] if assistant.chat_history else "Hello — Lab Safety Assistant."
+    # seed with assistant intro (only once)
+    intro = ""
+    # prefer assistant.chat_history[0] if present; fall back to a short intro string
+    if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0:
+        intro = assistant.chat_history[0].get("content", "")
+    else:
+        intro = ("Hello — I'm Lab Safety Assistant. Tell me about your planned experiment or upload a photo "
+                 "(type 'image:<URL or dataURL>'). I'll identify hazards, required PPE, and high-level safety advice.")
     st.session_state["messages"] = [{"role": "assistant", "content": intro}]
 
 if "last_parsed" not in st.session_state:
     st.session_state["last_parsed"] = {}
 
-# ---- Page layout: left sticky panel + main chat column ----
-left_col, main_col = st.columns([1, 3])
-
-# CSS for left sticky panel (full height, vertically centered, light red background)
+# Left sticky panel CSS (full-height, vertically centered, light red background)
 LEFT_PANEL_CSS = """
 <style>
 .left-sticky {
@@ -85,7 +87,7 @@ LEFT_PANEL_CSS = """
 .left-box {
   width: 100%;
   border-radius: 8px;
-  background: rgba(255,255,255,0.86);
+  background: rgba(255,255,255,0.92);
   padding: 12px 14px;
   box-shadow: 0 1px 6px rgba(0,0,0,0.06);
   max-height: 92vh;
@@ -97,16 +99,16 @@ LEFT_PANEL_CSS = """
 """
 st.markdown(LEFT_PANEL_CSS, unsafe_allow_html=True)
 
+# Layout
+left_col, main_col = st.columns([1, 3])
 left_container = left_col.container()
 
 def render_left(parsed: Dict[str, Any]):
-    # build the left panel content and render inside left_container
     if not parsed:
         html = "<div class='left-sticky'><div class='left-box'><h3>Safety Summary</h3><p>No model output yet.</p></div></div>"
         left_container.markdown(html, unsafe_allow_html=True)
         return
 
-    # unpack fields safely
     hazards = parsed.get("hazards", [])
     ppe_required = parsed.get("ppe_required", [])
     ppe_recommended = parsed.get("ppe_recommended", [])
@@ -136,17 +138,16 @@ def render_left(parsed: Dict[str, Any]):
     html += "</div></div>"
     left_container.markdown(html, unsafe_allow_html=True)
 
-# initial left panel
+# initial left panel render
 render_left(st.session_state.get("last_parsed", {}))
 
-# ---- Main chat UI (no expanders; full accumulator chat) ----
+# Chat rendering area
 with main_col:
     st.header("Lab Safety Chat")
 
     chat_container = st.container()
 
     def render_chat():
-        """Render the full chat history (called when changes occur)."""
         chat_container.empty()
         with chat_container:
             for m in st.session_state["messages"]:
@@ -163,10 +164,10 @@ with main_col:
                     else:
                         st.markdown(f"**Assistant:** {content}")
 
-    # render chat once
+    # Render chat once at load
     render_chat()
 
-    # ---- Input area (text + file upload) ----
+    # Input widgets
     st.write("---")
     st.subheader("Ask the assistant or upload an image")
     col_text, col_file, col_send = st.columns([6,2,1])
@@ -174,39 +175,34 @@ with main_col:
     uploaded_file = col_file.file_uploader("Upload image (optional)", type=["png","jpg","jpeg","bmp","tiff"])
     send_btn = col_send.button("Send")
 
-    # If user uploaded a file but didn't type, auto-create an image:data URL
+    # If user uploaded an image but no text, auto create data url
     if uploaded_file is not None and not user_input:
         data_url = file_to_data_url(uploaded_file)
         user_input = f"image:{data_url}"
 
-    # helper: safe append to session_state messages without duplicates
+    # robust append that avoids duplicates anywhere in history
     def append_message_safe(role: str, content):
-        new_key = content_key(content)
-        last = st.session_state["messages"][-1] if st.session_state["messages"] else None
-        last_key = content_key(last["content"]) if last is not None else None
-        last_role = last["role"] if last is not None else None
-        # avoid consecutive identical messages of same role
-        if last and last_role == role and last_key == new_key:
-            return
+        new_key = (role, content_key(content))
+        # If exactly same role+content already exists anywhere, skip
+        for m in st.session_state["messages"]:
+            if (m.get("role"), content_key(m.get("content"))) == new_key:
+                return
         st.session_state["messages"].append({"role": role, "content": content})
 
-    # When Send pressed
+    # On send
     if send_btn and user_input:
-        # append user message safely
         append_message_safe("user", user_input)
         render_chat()
 
-        # call assistant
         with st.spinner("Querying model (this may take a few seconds)..."):
             try:
                 result = assistant.query(user_input)
             except Exception as e:
-                err_text = f"Model call failed: {e}"
-                append_message_safe("assistant", err_text)
+                err = f"Model call failed: {e}"
+                append_message_safe("assistant", err)
                 render_chat()
             else:
                 parsed = result.get("parsed", {})
-                # update left panel if parsed is dict
                 if isinstance(parsed, dict):
                     st.session_state["last_parsed"] = parsed
                     render_left(parsed)
@@ -218,10 +214,10 @@ with main_col:
                     append_message_safe("assistant", str(parsed))
                 render_chat()
 
-    # clear chat button (keeps left panel content)
+    # Clear chat (keeps left panel)
     if st.button("Clear chat"):
-        # Reset messages to initial assistant intro only
-        intro = assistant.chat_history[0]["content"] if assistant.chat_history else "Hello — Lab Safety Assistant."
+        # reset messages to initial intro only (read from assistant.chat_history[0] if present)
+        intro = assistant.chat_history[0]["content"] if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0 else ("Hello — I'm Lab Safety Assistant.")
         st.session_state["messages"] = [{"role": "assistant", "content": intro}]
         st.session_state["last_parsed"] = {}
         render_left({})
