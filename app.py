@@ -210,6 +210,7 @@ with main_col:
 
     # Render chat once at load
     render_chat()
+    st.write(st.session_state["messages"])
 
     # Input widgets inside a form to ensure stable submission
     st.write("---")
