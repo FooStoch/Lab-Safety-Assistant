@@ -216,7 +216,8 @@ with main_col:
     st.write("---")
     st.subheader("Ask the assistant or upload an image")
     col_text, col_file, col_send = st.columns([6,2,1])
-    user_input = col_text.text_input("Type question or 'image:<URL or dataURL>'", key="user_input")
+    col_text.text_input("Type question or 'image:<URL or dataURL>'", key="user_input")
+    user_input = st.session_state.get("user_input", "")
     uploaded_file = col_file.file_uploader("Upload image (optional)", type=["png","jpg","jpeg","bmp","tiff"])
     send_btn = col_send.button("Send")
 
