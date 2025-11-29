@@ -1,4 +1,4 @@
-# app.py — updated minimal patch to avoid duplicate assistant intro messages
+# app.py — minimal edit: dedupe duplicate messages on render
 import os
 import base64
 import mimetypes
@@ -57,7 +57,7 @@ with st.spinner("Loading documents and building vectorizers..."):
 # Session state initialization
 if "messages" not in st.session_state:
     # seed with assistant intro (only once)
-    # You mentioned you moved intro into assistant.chat_history[0]; handle both cases safely.
+    # handle the case where you moved the intro into assistant.chat_history[0]
     if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0:
         first = assistant.chat_history[0]
         if isinstance(first, dict):
@@ -67,7 +67,7 @@ if "messages" not in st.session_state:
     else:
         intro_text = ("Hello — I'm Lab Safety Assistant. Tell me about your planned experiment or upload a photo "
                       "(type 'image:<URL or dataURL>'). I'll identify hazards, required PPE, and high-level safety advice.")
-    # store intro as a dict so message shape matches assistant responses (prevents duplicate rendering)
+    # store intro as a dict so message shape matches assistant responses (prevents shape mismatch duplicates)
     st.session_state["messages"] = [{"role": "assistant", "content": {"official_response": intro_text, "explain_short": ""}}]
 
 if "last_parsed" not in st.session_state:
@@ -151,18 +151,35 @@ with main_col:
 
     chat_container = st.container()
 
-    def render_chat():
+    def render_chat(max_messages: int = 200):
+        """
+        Render the chat while skipping duplicate messages that have identical (role, content_key).
+        This prevents repeated intro/identical messages from showing multiple times in the UI.
+        """
         chat_container.empty()
         with chat_container:
-            for m in st.session_state["messages"]:
+            msgs = st.session_state.get("messages", [])[-max_messages:]
+            seen = set()  # track seen (role, content_key)
+            for m in msgs:
                 role = m.get("role", "assistant")
                 content = m.get("content")
+                key = (role, content_key(content))
+                # skip duplicated content (first occurrence shown, later duplicates suppressed)
+                if key in seen:
+                    continue
+                seen.add(key)
+
                 if role == "user":
                     st.markdown(f"**You:** {content}")
                 else:
                     if isinstance(content, dict):
+                        # Prefer short explain then official_response for compact display
+                        explain = content.get("explain_short", "")
                         official = content.get("official_response") or content.get("raw_text") or ""
-                        st.markdown(f"**Assistant:** {official}")
+                        if explain:
+                            st.markdown(f"**Assistant:** _{explain}_")
+                        if official:
+                            st.markdown(f"**Assistant (summary):** {official}")
                         with st.expander("Full structured output (click to expand)"):
                             st.json(content)
                     else:
@@ -228,7 +245,8 @@ with main_col:
             else:
                 intro = str(first)
         else:
-            intro = assistant.intro_text if hasattr(assistant, "intro_text") else ("Hello — I'm Lab Safety Assistant.")
+            intro = ("Hello — I'm Lab Safety Assistant. Tell me about your planned experiment or upload a photo "
+                     "(type 'image:<URL or dataURL>'). I'll identify hazards, required PPE, and high-level safety advice.")
         # store as dict shape to match assistant responses
         st.session_state["messages"] = [{"role": "assistant", "content": {"official_response": intro, "explain_short": ""}}]
         st.session_state["last_parsed"] = {}
