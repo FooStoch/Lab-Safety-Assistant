@@ -568,7 +568,7 @@ class LabSafetyAssistantV3:
                       "I'll identify potential hazards, required PPE, and high-level safety advice. I will cite SDS passages when available.")
         print("\n" + intro_text + "\n")
         # store assistant intro in history as assistant content (string)
-        self.chat_history.append({"role": "assistant", "content": intro_text})
+        self.intro_text = intro_text
 
     def user_input_to_content(self, raw_input: str) -> Tuple[List[Dict], str]:
         raw_input = raw_input.strip()
@@ -633,3 +633,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
