@@ -60,7 +60,7 @@ if "messages" not in st.session_state:
     intro = ""
     # prefer assistant.chat_history[0] if present; fall back to a short intro string
     if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0:
-        intro = assistant.chat_history[0].get("content", "")
+        intro = assistant.intro_text.get("content", "")
     else:
         intro = ("Hello — I'm Lab Safety Assistant. Tell me about your planned experiment or upload a photo "
                  "(type 'image:<URL or dataURL>'). I'll identify hazards, required PPE, and high-level safety advice.")
@@ -217,7 +217,7 @@ with main_col:
     # Clear chat (keeps left panel)
     if st.button("Clear chat"):
         # reset messages to initial intro only (read from assistant.chat_history[0] if present)
-        intro = assistant.chat_history[0]["content"] if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0 else ("Hello — I'm Lab Safety Assistant.")
+        intro = assistant.intro_text["content"] if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0 else ("Hello — I'm Lab Safety Assistant.")
         st.session_state["messages"] = [{"role": "assistant", "content": intro}]
         st.session_state["last_parsed"] = {}
         render_left({})
