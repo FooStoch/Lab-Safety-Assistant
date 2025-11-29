@@ -1,0 +1,3 @@
+Ozone – Formula: O3 (CAS 10028-15-6) - Synonyms/Trade Names: Triatomic oxygen. IDLH 5 ppm | NIOSH REL: C 0.1 ppm (0.2 mg/m3 ) OSHA PEL†: TWA 0.1 ppm (0.2 mg/m3 ) | Incompatibilities and Reactivities: All oxidizable materials (both organic & inorganic) Exposure Routes, Symptoms, Target Organs (see Table 5): ER: Inh, Con SY: Irrit eyes, muc memb; pulm edema; chronic resp disease TO: Eyes, resp sys First Aid (see Table 6): Eye: Medical attention Breath: Fresh air; 100% O2 240 P Paraffin wax fume. Personal Protection/Sanitation: (see Table 2): Skin: N.R. Eyes: N.R. Wash skin: N.R. Remove: N.R. Change: N.R.. Physical Description: Colorless to blue gas with a very pungent odor..
+
+# source: NIOSH Pocket Guide to Chemical Hazards (2007)
