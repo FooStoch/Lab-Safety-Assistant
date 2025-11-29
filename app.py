@@ -1,4 +1,4 @@
-# app.py — minimal edit: dedupe duplicate messages on render
+# app.py — with debug output for st.session_state["messages"]
 import os
 import base64
 import mimetypes
@@ -187,6 +187,30 @@ with main_col:
 
     # Render chat once at load
     render_chat()
+
+    # -------------------------
+    # DEBUG LINES (temporary) — <--- EXACT PLACE I ADDED THE DEBUG OUTPUT
+    # After you paste these outputs here, delete or comment out these lines.
+    # -------------------------
+    st.write("DEBUG — RAW messages (paste this entire output in your reply):")
+    st.write(st.session_state.get("messages", []))
+    # compact diagnostic: index, role, type(content), and the canonical content_key used by dedupe
+    diag = []
+    for i, m in enumerate(st.session_state.get("messages", [])):
+        try:
+            role = m.get("role", None)
+            typ = type(m.get("content")).__name__
+            key = content_key(m.get("content"))
+        except Exception:
+            role = None
+            typ = "error"
+            key = "error"
+        diag.append({"idx": i, "role": role, "type": typ, "key": key})
+    st.write("DEBUG — DIAGNOSTIC (index, role, content-type, content_key):")
+    st.write(diag)
+    # -------------------------
+    # End debug block
+    # -------------------------
 
     # Input widgets
     st.write("---")
