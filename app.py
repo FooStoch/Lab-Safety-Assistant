@@ -1,5 +1,5 @@
 import streamlit as st
-from lab_safety import LabSafetyAssistant
+from lab_safety import LabSafetyAssistantV3
 
 # ---------------------------------------------
 # Initialize session state
