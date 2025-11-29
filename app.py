@@ -5,7 +5,7 @@ from lab_safety import LabSafetyAssistantV3
 # Initialize session state
 # ---------------------------------------------
 if "assistant" not in st.session_state:
-    st.session_state.assistant = LabSafetyAssistant()
+    st.session_state.assistant = LabSafetyAssistantV3()
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
