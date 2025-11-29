@@ -1,4 +1,4 @@
-# app.py — updated to prevent duplicate messages and show intro once
+# app.py — updated minimal patch to avoid duplicate assistant intro messages
 import os
 import base64
 import mimetypes
@@ -57,14 +57,18 @@ with st.spinner("Loading documents and building vectorizers..."):
 # Session state initialization
 if "messages" not in st.session_state:
     # seed with assistant intro (only once)
-    intro = ""
-    # prefer assistant.chat_history[0] if present; fall back to a short intro string
+    # You mentioned you moved intro into assistant.chat_history[0]; handle both cases safely.
     if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0:
-        intro = assistant.chat_history[0].get("content", "")
+        first = assistant.chat_history[0]
+        if isinstance(first, dict):
+            intro_text = first.get("content", "")
+        else:
+            intro_text = str(first)
     else:
-        intro = ("Hello — I'm Lab Safety Assistant. Tell me about your planned experiment or upload a photo "
-                 "(type 'image:<URL or dataURL>'). I'll identify hazards, required PPE, and high-level safety advice.")
-    st.session_state["messages"] = [{"role": "assistant", "content": intro}]
+        intro_text = ("Hello — I'm Lab Safety Assistant. Tell me about your planned experiment or upload a photo "
+                      "(type 'image:<URL or dataURL>'). I'll identify hazards, required PPE, and high-level safety advice.")
+    # store intro as a dict so message shape matches assistant responses (prevents duplicate rendering)
+    st.session_state["messages"] = [{"role": "assistant", "content": {"official_response": intro_text, "explain_short": ""}}]
 
 if "last_parsed" not in st.session_state:
     st.session_state["last_parsed"] = {}
@@ -217,8 +221,16 @@ with main_col:
     # Clear chat (keeps left panel)
     if st.button("Clear chat"):
         # reset messages to initial intro only (read from assistant.chat_history[0] if present)
-        intro = assistant.chat_history[0]["content"] if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0 else ("Hello — I'm Lab Safety Assistant.")
-        st.session_state["messages"] = [{"role": "assistant", "content": intro}]
+        if getattr(assistant, "chat_history", None) and len(assistant.chat_history) > 0:
+            first = assistant.chat_history[0]
+            if isinstance(first, dict):
+                intro = first.get("content", "")
+            else:
+                intro = str(first)
+        else:
+            intro = assistant.intro_text if hasattr(assistant, "intro_text") else ("Hello — I'm Lab Safety Assistant.")
+        # store as dict shape to match assistant responses
+        st.session_state["messages"] = [{"role": "assistant", "content": {"official_response": intro, "explain_short": ""}}]
         st.session_state["last_parsed"] = {}
         render_left({})
         render_chat()
