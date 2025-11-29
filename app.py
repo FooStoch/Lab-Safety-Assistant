@@ -1,4 +1,4 @@
-# app.py — with debug output for st.session_state["messages"]
+# app.py — robust input using st.form to avoid text_input/button timing issues
 import os
 import base64
 import mimetypes
@@ -139,6 +139,29 @@ def render_left(parsed: Dict[str, Any]):
     html += rows("Safer substitutes", safer_substitutes)
     html += rows("Citations", citations)
     html += rows("Confidence", confidence)
+    # show short explain and official_response if present
+    explain_short = parsed.get("explain_short", "")
+    official_response = parsed.get("official_response", "")
+    if explain_short:
+        html += f"<hr><p><em>{explain_short}</em></p>"
+    if official_response:
+        html += f"<p><strong>Official summary:</strong></p><p>{official_response}</p>"
+    # retrieved sources if present
+    retrieved = parsed.get("retrieved_meta") or parsed.get("retrieved_sources") or []
+    if retrieved:
+        html += "<hr><p><strong>Retrieved sources:</strong></p><ul>"
+        # if this is list of dicts (meta), show source + method + score when available
+        if all(isinstance(x, dict) for x in retrieved):
+            for r in retrieved:
+                src = r.get("source") or r.get("filename") or str(r)
+                method = r.get("method", "")
+                score = r.get("score", "")
+                html += f"<li class='mono'>{src} {f'({method}, {score:.3f})' if method else ''}</li>"
+        else:
+            for r in retrieved:
+                html += f"<li class='mono'>{r}</li>"
+        html += "</ul>"
+
     html += "</div></div>"
     left_container.markdown(html, unsafe_allow_html=True)
 
@@ -188,77 +211,63 @@ with main_col:
     # Render chat once at load
     render_chat()
 
-    # -------------------------
-    # DEBUG LINES (temporary) — <--- EXACT PLACE I ADDED THE DEBUG OUTPUT
-    # After you paste these outputs here, delete or comment out these lines.
-    # -------------------------
-    st.write("DEBUG — RAW messages (paste this entire output in your reply):")
-    st.write(st.session_state.get("messages", []))
-    # compact diagnostic: index, role, type(content), and the canonical content_key used by dedupe
-    diag = []
-    for i, m in enumerate(st.session_state.get("messages", [])):
-        try:
-            role = m.get("role", None)
-            typ = type(m.get("content")).__name__
-            key = content_key(m.get("content"))
-        except Exception:
-            role = None
-            typ = "error"
-            key = "error"
-        diag.append({"idx": i, "role": role, "type": typ, "key": key})
-    st.write("DEBUG — DIAGNOSTIC (index, role, content-type, content_key):")
-    st.write(diag)
-    # -------------------------
-    # End debug block
-    # -------------------------
-
-    # Input widgets
+    # Input widgets inside a form to ensure stable submission
     st.write("---")
     st.subheader("Ask the assistant or upload an image")
-    col_text, col_file, col_send = st.columns([6,2,1])
-    col_text.text_input("Type question or 'image:<URL or dataURL>'", key="user_input")
-    user_input = st.session_state.get("user_input", "")
-    uploaded_file = col_file.file_uploader("Upload image (optional)", type=["png","jpg","jpeg","bmp","tiff"])
-    send_btn = col_send.button("Send")
+    with st.form(key="user_input_form"):
+        col_text, col_file, col_send = st.columns([6,2,1])
+        # text input stored in session state under form key "user_text"
+        col_text.text_input("Type question or 'image:<URL or dataURL>'", key="user_text")
+        # file uploader inside form (key "user_file")
+        col_file.file_uploader("Upload image (optional)", type=["png","jpg","jpeg","bmp","tiff"], key="user_file")
+        submitted = col_send.form_submit_button("Send")
 
-    # If user uploaded an image but no text, auto create data url
-    if uploaded_file is not None and not user_input:
-        data_url = file_to_data_url(uploaded_file)
-        user_input = f"image:{data_url}"
+    # If the form was submitted, handle the input (read values from session_state)
+    if submitted:
+        user_input = st.session_state.get("user_text", "").strip()
+        uploaded_file = st.session_state.get("user_file", None)
+        # If user uploaded an image but no text, auto create data url
+        if uploaded_file is not None and not user_input:
+            data_url = file_to_data_url(uploaded_file)
+            user_input = f"image:{data_url}"
 
-    # robust append that avoids duplicates anywhere in history
-    def append_message_safe(role: str, content):
-        new_key = (role, content_key(content))
-        # If exactly same role+content already exists anywhere, skip
-        for m in st.session_state["messages"]:
-            if (m.get("role"), content_key(m.get("content"))) == new_key:
-                return
-        st.session_state["messages"].append({"role": role, "content": content})
+        if user_input:
+            # robust append that avoids duplicates anywhere in history
+            def append_message_safe(role: str, content):
+                new_key = (role, content_key(content))
+                # If exactly same role+content already exists anywhere, skip
+                for m in st.session_state["messages"]:
+                    if (m.get("role"), content_key(m.get("content"))) == new_key:
+                        return
+                st.session_state["messages"].append({"role": role, "content": content})
 
-    # On send
-    if send_btn and user_input:
-        append_message_safe("user", user_input)
-        render_chat()
+            append_message_safe("user", user_input)
+            render_chat()
 
-        with st.spinner("Querying model (this may take a few seconds)..."):
-            try:
-                result = assistant.query(user_input)
-            except Exception as e:
-                err = f"Model call failed: {e}"
-                append_message_safe("assistant", err)
-                render_chat()
-            else:
-                parsed = result.get("parsed", {})
-                if isinstance(parsed, dict):
-                    st.session_state["last_parsed"] = parsed
-                    render_left(parsed)
-
-                    official = parsed.get("official_response") or parsed.get("raw_text") or ""
-                    assistant_display = {"official_response": official, **{k:v for k,v in parsed.items() if k not in ('official_response',)}}
-                    append_message_safe("assistant", assistant_display)
+            with st.spinner("Querying model (this may take a few seconds)..."):
+                try:
+                    result = assistant.query(user_input)
+                except Exception as e:
+                    err = f"Model call failed: {e}"
+                    append_message_safe("assistant", err)
+                    render_chat()
                 else:
-                    append_message_safe("assistant", str(parsed))
-                render_chat()
+                    parsed = result.get("parsed", {})
+                    retrieved = result.get("retrieved", [])
+                    if isinstance(parsed, dict):
+                        # store parsed + retrieved in session state for left panel
+                        st.session_state["last_parsed"] = parsed
+                        # attach retrieved meta into parsed for left panel convenience (if not already)
+                        if "retrieved_meta" not in parsed and retrieved:
+                            parsed["retrieved_meta"] = retrieved
+                        render_left(parsed)
+
+                        official = parsed.get("official_response") or parsed.get("raw_text") or ""
+                        assistant_display = {"official_response": official, **{k:v for k,v in parsed.items() if k not in ('official_response',)}}
+                        append_message_safe("assistant", assistant_display)
+                    else:
+                        append_message_safe("assistant", str(parsed))
+                    render_chat()
 
     # Clear chat (keeps left panel)
     if st.button("Clear chat"):
