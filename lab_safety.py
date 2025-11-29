@@ -11,7 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROK_MODEL = "x-ai/grok-4.1-fast:free"   # no :online suffix (no web search)
 OPENROUTER_API_KEY = None
-OUTPUT_DIR = r"C:\Users\fores\OneDrive\Desktop\Lab Safety Assistant\output_txt"               # folder with your .txt SDS snippets
+OUTPUT_DIR = "./output_txt"               # folder with your .txt SDS snippets
 TOP_K = 4
 # TF-IDF minimum combined score to consider a fallback result reliable
 TFIDF_SCORE_THRESHOLD = 0.06
@@ -632,3 +632,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
