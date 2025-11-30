@@ -23,56 +23,52 @@ if "latest_structured" not in st.session_state:
 left_col, main_col = st.columns([1, 3], gap="large")
 
 with left_col:
-    # Wrap left content in scrollable div
-    st.markdown('<div style="height: 80vh; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">', unsafe_allow_html=True)
-    st.header("Safety Summary")
+    with st.container(height=600):
+        st.header("Safety Summary")
 
-    data = st.session_state.latest_structured
+        data = st.session_state.latest_structured
 
-    if data:
-        def show_list(name, lst):
-            if lst:
-                st.markdown(f"**{name}:**")
-                for item in lst:
-                    st.markdown(f"- {item}")
+        if data:
+            def show_list(name, lst):
+                if lst:
+                    st.markdown(f"**{name}:**")
+                    for item in lst:
+                        st.markdown(f"- {item}")
 
-        show_list("Hazards", data.get("hazards"))
-        show_list("Required PPE", data.get("ppe_required"))
-        show_list("Recommended PPE", data.get("ppe_recommended"))
-        show_list("Immediate Actions", data.get("immediate_actions"))
-        show_list("Safer Substitutes", data.get("safer_substitutes"))
+            show_list("Hazards", data.get("hazards"))
+            show_list("Required PPE", data.get("ppe_required"))
+            show_list("Recommended PPE", data.get("ppe_recommended"))
+            show_list("Immediate Actions", data.get("immediate_actions"))
+            show_list("Safer Substitutes", data.get("safer_substitutes"))
 
-        st.markdown("**Confidence:** " + str(data.get("confidence", "N/A")))
-    else:
-        st.write("Ask a lab safety question to see the summary.")
-    st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("**Confidence:** " + str(data.get("confidence", "N/A")))
+        else:
+            st.write("Ask a lab safety question to see the summary.")
 
 
 with main_col:
-    # Wrap main content in scrollable div
-    st.markdown('<div style="height: 80vh; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">', unsafe_allow_html=True)
-    st.header("Lab Safety Chat")
+    with st.container(height=600):
+        st.header("Lab Safety Chat")
 
-    # Render chat messages
-    for msg in st.session_state.ui_messages:
-        if msg["role"] == "user":
-            st.markdown(f"**You:** {msg['content']}")
-        elif msg["role"] == "assistant":
-            d = msg["content"]
+        # Render chat messages
+        for msg in st.session_state.ui_messages:
+            if msg["role"] == "user":
+                st.markdown(f"**You:** {msg['content']}")
+            elif msg["role"] == "assistant":
+                d = msg["content"]
 
-            # Clean assistant output
-            if "explain_short" in d:
-                st.markdown(f"**Assistant (short):** {d['explain_short']}")
-            if "official_response" in d:
-                st.markdown(f"**Assistant:** {d['official_response']}")
-            if "citations" in d and d["citations"]:
-                st.markdown("**Sources:**")
-                for c in d["citations"]:
-                    st.markdown(f"- {c}")
+                # Clean assistant output
+                if "explain_short" in d:
+                    st.markdown(f"**Assistant (short):** {d['explain_short']}")
+                if "official_response" in d:
+                    st.markdown(f"**Assistant:** {d['official_response']}")
+                if "citations" in d and d["citations"]:
+                    st.markdown("**Sources:**")
+                    for c in d["citations"]:
+                        st.markdown(f"- {c}")
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Input box (outside the scrollable div, at the bottom)
+    # Input box (outside the scrollable container, at the bottom)
     user_input = st.text_input("Enter a lab safety question:")
     send_btn = st.button("Send")
 
