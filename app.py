@@ -23,6 +23,8 @@ if "latest_structured" not in st.session_state:
 left_col, main_col = st.columns([1, 3], gap="large")
 
 with left_col:
+    # Wrap left content in scrollable div
+    st.markdown('<div style="height: 80vh; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">', unsafe_allow_html=True)
     st.header("Safety Summary")
 
     data = st.session_state.latest_structured
@@ -43,9 +45,12 @@ with left_col:
         st.markdown("**Confidence:** " + str(data.get("confidence", "N/A")))
     else:
         st.write("Ask a lab safety question to see the summary.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 with main_col:
+    # Wrap main content in scrollable div
+    st.markdown('<div style="height: 80vh; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">', unsafe_allow_html=True)
     st.header("Lab Safety Chat")
 
     # Render chat messages
@@ -65,8 +70,9 @@ with main_col:
                 for c in d["citations"]:
                     st.markdown(f"- {c}")
 
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Input box
+    # Input box (outside the scrollable div, at the bottom)
     user_input = st.text_input("Enter a lab safety question:")
     send_btn = st.button("Send")
 
