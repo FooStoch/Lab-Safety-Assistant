@@ -71,7 +71,11 @@ with main_col:
 
     # Input box (outside the scrollable container, at the bottom)
     user_input = st.text_input("Enter a lab safety question:")
-    send_btn = st.button("Send")
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        send_btn = st.button("Send")
+    with btn_col2:
+        clear_btn = st.button("Clear History")
 
     if send_btn and user_input.strip():
         # add user message to UI
@@ -91,4 +95,10 @@ with main_col:
         # update left summary
         st.session_state.latest_structured = parsed
 
+        st.rerun()
+
+    if clear_btn:
+        st.session_state.ui_messages = []
+        st.session_state.latest_structured = None
+        st.session_state.assistant = LabSafetyAssistantV3()
         st.rerun()
