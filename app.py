@@ -95,6 +95,8 @@ with main_col:
         # update left summary
         st.session_state.latest_structured = parsed
 
+        st.session_state.user_input_key = ""
+
         st.rerun()
 
     if clear_btn:
