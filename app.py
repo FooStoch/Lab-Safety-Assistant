@@ -20,7 +20,7 @@ if "latest_structured" not in st.session_state:
 # -------------------------------
 # Layout: Left Summary + Main Chat
 # -------------------------------
-left_col, main_col = st.columns([1, 3], gap="large")
+left_col, main_col = st.columns([1, 2.7], gap="large")
 
 with left_col:
     with st.container(height=600):
