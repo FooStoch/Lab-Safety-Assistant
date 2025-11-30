@@ -39,6 +39,7 @@ with left_col:
 with main_col:
     with st.container(height=600):
         st.header("Lab Safety Chat")
+        st.write("Hello — I'm Lab Safety Assistant ๋⭑🛸๋⭑. Tell me about your planned experiment or upload a photo (type 'image:<URL or dataURL>'). I'll identify potential hazards, required PPE, and high-level safety advice. I will cite SDS passages when available.")
         # Render chat messages
         for msg in st.session_state.ui_messages:
             if msg["role"] == "user":
@@ -56,7 +57,7 @@ with main_col:
                         st.markdown(f"- {c}")
                 st.divider()
     # Input box (outside the scrollable container, at the bottom)
-    user_input = st.text_input("Enter a lab safety question (for image(s), write \"image:<IMAGE_URL>\"):", key=f"text_value_{st.session_state.clear_counter}")
+    user_input = st.text_input("Enter a lab safety question (for image(s), write \"image:<URL>\"):", key=f"text_value_{st.session_state.clear_counter}")
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         send_btn = st.button("Send")
