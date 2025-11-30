@@ -53,19 +53,20 @@ with main_col:
         # Render chat messages
         for msg in st.session_state.ui_messages:
             if msg["role"] == "user":
-                st.markdown(f"**You:** {msg['content']}")
+                st.markdown(f"**🫵(You):** {msg['content']}")
             elif msg["role"] == "assistant":
                 d = msg["content"]
 
                 # Clean assistant output
                 if "explain_short" in d:
-                    st.markdown(f"**Assistant (short):** {d['explain_short']}")
+                    st.markdown(f"**💥(Assistant):** {d['explain_short']}")
                 if "official_response" in d:
-                    st.markdown(f"**Assistant:** {d['official_response']}")
+                    st.markdown(f"**🤖(Assistant):** {d['official_response']}")
                 if "citations" in d and d["citations"]:
                     st.markdown("**Sources:**")
                     for c in d["citations"]:
                         st.markdown(f"- {c}")
+                st.divider()
 
 
     # Input box (outside the scrollable container, at the bottom)
