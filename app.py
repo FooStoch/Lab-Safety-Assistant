@@ -75,7 +75,7 @@ with main_col:
 
 
     # Input box (outside the scrollable container, at the bottom)
-    user_input = st.text_input("Enter a lab safety question:", key="user_input_key")
+    user_input = st.text_input("Enter a lab safety question:", key="text_value")
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         send_btn = st.button("Send")
