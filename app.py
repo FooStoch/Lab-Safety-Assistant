@@ -11,9 +11,9 @@ if "ui_messages" not in st.session_state:
 # Holds most recent parsed structured output for left panel
 if "latest_structured" not in st.session_state:
     st.session_state.latest_structured = None
-# Initialize input value
-if "input_value" not in st.session_state:
-    st.session_state.input_value = ""
+# Initialize clear counter for dynamic key
+if "clear_counter" not in st.session_state:
+    st.session_state.clear_counter = 0
 # -------------------------------
 # Layout: Left Summary + Main Chat
 # -------------------------------
@@ -56,7 +56,7 @@ with main_col:
                         st.markdown(f"- {c}")
                 st.divider()
     # Input box (outside the scrollable container, at the bottom)
-    user_input = st.text_input("Enter a lab safety question:", value=st.session_state.input_value, key="text_value")
+    user_input = st.text_input("Enter a lab safety question:", key=f"text_value_{st.session_state.clear_counter}")
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         send_btn = st.button("Send")
@@ -76,10 +76,13 @@ with main_col:
         )
         # update left summary
         st.session_state.latest_structured = parsed
-        st.session_state.input_value = ""
+        # Increment counter to force new input widget (clears it)
+        st.session_state.clear_counter += 1
         st.rerun()
     if clear_btn:
         st.session_state.ui_messages = []
         st.session_state.latest_structured = None
         st.session_state.assistant = LabSafetyAssistantV3()
+        # Reset counter for fresh input
+        st.session_state.clear_counter = 0
         st.rerun()
