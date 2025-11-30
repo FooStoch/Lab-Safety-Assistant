@@ -17,6 +17,11 @@ if "latest_structured" not in st.session_state:
     st.session_state.latest_structured = None
 
 
+
+def clear_input():
+    st.session_state.text_value = ""
+
+
 # -------------------------------
 # Layout: Left Summary + Main Chat
 # -------------------------------
@@ -95,7 +100,7 @@ with main_col:
         # update left summary
         st.session_state.latest_structured = parsed
 
-        st.session_state.user_input_key = ""
+        clear_input()
 
         st.rerun()
 
