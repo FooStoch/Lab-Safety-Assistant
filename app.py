@@ -88,4 +88,4 @@ with main_col:
         # update left summary
         st.session_state.latest_structured = parsed
 
-        st.experimental_rerun()
+        st.rerun()
