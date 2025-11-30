@@ -64,7 +64,7 @@ with main_col:
 
                 # Clean assistant output
                 if "explain_short" in d:
-                    st.markdown(f"**💥(Assistant):** {d['explain_short']}")
+                    st.markdown(f"**❗(Assistant):** {d['explain_short']}")
                 if "official_response" in d:
                     st.markdown(f"**🧠(Assistant):** {d['official_response']}")
                 if "citations" in d and d["citations"]:
