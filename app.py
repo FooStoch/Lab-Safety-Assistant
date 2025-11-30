@@ -1,84 +1,91 @@
 import streamlit as st
+import json
 from lab_safety import LabSafetyAssistantV3
 
-# ---------------------------------------------
-# Initialize session state
-# ---------------------------------------------
+st.set_page_config(layout="wide")
+
+# Initialize assistant once
 if "assistant" not in st.session_state:
     st.session_state.assistant = LabSafetyAssistantV3()
 
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
+# Holds UI-visible chat history (NOT internal model history)
+if "ui_messages" not in st.session_state:
+    st.session_state.ui_messages = []
 
-# ---------------------------------------------
-# Page setup
-# ---------------------------------------------
-st.set_page_config(page_title="Lab Safety Assistant", layout="wide")
+# Holds most recent parsed structured output for left panel
+if "latest_structured" not in st.session_state:
+    st.session_state.latest_structured = None
 
-left_col, main_col = st.columns([1, 2])
 
-# ---------------------------------------------
-# Render Safety Summary (left column)
-# ---------------------------------------------
+# -------------------------------
+# Layout: Left Summary + Main Chat
+# -------------------------------
+left_col, main_col = st.columns([1, 3], gap="large")
+
 with left_col:
     st.header("Safety Summary")
-    last_msg = st.session_state["messages"][-1] if st.session_state["messages"] else None
 
-    if last_msg and isinstance(last_msg.get("content"), dict):
-        st.write(last_msg["content"].get("official_response", ""))
+    data = st.session_state.latest_structured
+
+    if data:
+        def show_list(name, lst):
+            if lst:
+                st.markdown(f"**{name}:**")
+                for item in lst:
+                    st.markdown(f"- {item}")
+
+        show_list("Hazards", data.get("hazards"))
+        show_list("Required PPE", data.get("ppe_required"))
+        show_list("Recommended PPE", data.get("ppe_recommended"))
+        show_list("Immediate Actions", data.get("immediate_actions"))
+        show_list("Safer Substitutes", data.get("safer_substitutes"))
+
+        st.markdown("**Confidence:** " + str(data.get("confidence", "N/A")))
     else:
-        st.write("No model output yet.")
+        st.write("Ask a lab safety question to see the summary.")
 
-# ---------------------------------------------
-# Main Chat UI (right column)
-# ---------------------------------------------
+
 with main_col:
     st.header("Lab Safety Chat")
 
-    # ----- FIX: persistent container only -----
-    chat_container = st.container()
+    # Render chat messages
+    for msg in st.session_state.ui_messages:
+        if msg["role"] == "user":
+            st.markdown(f"**You:** {msg['content']}")
+        elif msg["role"] == "assistant":
+            d = msg["content"]
 
-    # Render the chat exactly once
-    with chat_container:
-        for m in st.session_state["messages"]:
-            role = m.get("role", "assistant")
-            content = m.get("content")
+            # Clean assistant output
+            if "explain_short" in d:
+                st.markdown(f"**Assistant (short):** {d['explain_short']}")
+            if "official_response" in d:
+                st.markdown(f"**Assistant:** {d['official_response']}")
+            if "citations" in d and d["citations"]:
+                st.markdown("**Sources:**")
+                for c in d["citations"]:
+                    st.markdown(f"- {c}")
 
-            if role == "user":
-                st.markdown(f"**You:** {content}")
 
-            else:  # assistant
-                if isinstance(content, dict):
-                    summary = (
-                        content.get("official_response") or
-                        content.get("raw_text") or
-                        ""
-                    )
-                    st.markdown(f"**Assistant (summary):** {summary}")
-                    with st.expander("Full structured output (click to expand)"):
-                        st.json(content)
-                else:
-                    st.markdown(f"**Assistant:** {content}")
+    # Input box
+    user_input = st.text_input("Enter a lab safety question:")
+    send_btn = st.button("Send")
 
-    # ----- User input form -----
-    with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("Message:")
-        submitted = st.form_submit_button("Send")
+    if send_btn and user_input.strip():
+        # add user message to UI
+        st.session_state.ui_messages.append(
+            {"role": "user", "content": user_input.strip()}
+        )
 
-        if submitted and user_input.strip():
-            # Add user message
-            st.session_state["messages"].append({
-                "role": "user",
-                "content": user_input.strip()
-            })
+        # call assistant
+        reply = st.session_state.assistant.query(user_input.strip())
+        parsed = reply["parsed"]
 
-            # Run agent
-            reply = st.session_state.assistant.query(user_input.strip())
+        # store for UI
+        st.session_state.ui_messages.append(
+            {"role": "assistant", "content": parsed}
+        )
 
-            # Add assistant reply
-            st.session_state["messages"].append({
-                "role": "assistant",
-                "content": reply
-            })
+        # update left summary
+        st.session_state.latest_structured = parsed
 
-            st.rerun()
+        st.experimental_rerun()
