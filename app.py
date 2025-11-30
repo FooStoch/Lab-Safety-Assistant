@@ -61,7 +61,7 @@ with main_col:
                 if "explain_short" in d:
                     st.markdown(f"**💥(Assistant):** {d['explain_short']}")
                 if "official_response" in d:
-                    st.markdown(f"**🤖(Assistant):** {d['official_response']}")
+                    st.markdown(f"**🧠(Assistant):** {d['official_response']}")
                 if "citations" in d and d["citations"]:
                     st.markdown("**Sources:**")
                     for c in d["citations"]:
