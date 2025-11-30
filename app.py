@@ -39,7 +39,7 @@ with left_col:
 with main_col:
     with st.container(height=600):
         st.header("Lab Safety Chat")
-        st.write("Hello — I'm Lab Safety Assistant ๋⭑🛸๋⭑. Tell me about your planned experiment or upload a photo (type 'image:<URL or dataURL>'). I'll identify potential hazards, required PPE, and high-level safety advice. I will cite SDS passages when available.")
+        st.write("Hello — I'm Lab Safety Assistant  ๋⭑🛸๋⭑. Tell me about your planned experiment or upload a photo (type 'image:<URL or dataURL>'). I'll identify potential hazards, required PPE, and high-level safety advice. I will cite SDS passages when available.")
         # Render chat messages
         for msg in st.session_state.ui_messages:
             if msg["role"] == "user":
