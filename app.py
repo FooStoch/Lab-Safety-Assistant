@@ -1,6 +1,5 @@
 import streamlit as st
 import json
-import base64
 from lab_safety import LabSafetyAssistantV3
 st.set_page_config(layout="wide")
 # Initialize assistant once
@@ -58,27 +57,18 @@ with main_col:
                 st.divider()
     # Input box (outside the scrollable container, at the bottom)
     user_input = st.text_input("Enter a lab safety question:", key=f"text_value_{st.session_state.clear_counter}")
-    uploaded_files = st.file_uploader("Upload images (optional)", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True, key=f"uploader_{st.session_state.clear_counter}")
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         send_btn = st.button("Send")
     with btn_col2:
         clear_btn = st.button("Clear History")
-    if send_btn and (user_input.strip() or uploaded_files):
-        query_parts = [user_input.strip()] if user_input.strip() else []
-        for file in uploaded_files or []:
-            base64_img = base64.b64encode(file.getvalue()).decode('utf-8')
-            query_parts.append(f"image:{base64_img}")
-        full_query = " ".join(query_parts)
-        ui_content = user_input.strip()
-        if uploaded_files:
-            ui_content += f" (with {len(uploaded_files)} images)"
+    if send_btn and user_input.strip():
         # add user message to UI
         st.session_state.ui_messages.append(
-            {"role": "user", "content": ui_content}
+            {"role": "user", "content": user_input.strip()}
         )
         # call assistant
-        reply = st.session_state.assistant.query(full_query)
+        reply = st.session_state.assistant.query(user_input.strip())
         parsed = reply["parsed"]
         # store for UI
         st.session_state.ui_messages.append(
