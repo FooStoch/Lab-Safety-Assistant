@@ -56,7 +56,7 @@ with main_col:
                         st.markdown(f"- {c}")
                 st.divider()
     # Input box (outside the scrollable container, at the bottom)
-    user_input = st.text_input("Enter a lab safety question (for image(s), write "image:<IMAGE_URL>"):", key=f"text_value_{st.session_state.clear_counter}")
+    user_input = st.text_input("Enter a lab safety question (for image(s), write \"image:<IMAGE_URL>\"):", key=f"text_value_{st.session_state.clear_counter}")
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         send_btn = st.button("Send")
