@@ -73,7 +73,7 @@ with main_col:
             })
 
             # Run agent
-            reply = st.session_state.assistant.process(user_input.strip())
+            reply = st.session_state.assistant.query(user_input.strip())
 
             # Add assistant reply
             st.session_state["messages"].append({
