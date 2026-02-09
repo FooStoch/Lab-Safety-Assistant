@@ -11,7 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import streamlit as st
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-GROK_MODEL = "x-ai/grok-4.1-fast:free"   # no :online suffix (no web search)
+GROK_MODEL = "deepseek/deepseek-r1-0528:free"   # no :online suffix (no web search)
 OPENROUTER_API_KEY = st.secrets["openrouter"]["api_key"]
 OUTPUT_DIR = "./output_txt"               # folder with your .txt SDS snippets
 TOP_K = 4
@@ -634,6 +634,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
