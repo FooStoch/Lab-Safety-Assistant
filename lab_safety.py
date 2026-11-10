@@ -526,7 +526,7 @@ def call_openrouter(messages: List[Dict]) -> Dict:
     payload = {
         "model": GROK_MODEL,
         "messages": messages,
-        "max_tokens": 900,
+        "max_tokens": 1800,
         "temperature": 0.0
     }
     headers = {
@@ -606,10 +606,243 @@ class LabSafetyAssistantV3:
     #             parsed["official_response"] = "I could not format a paragraph summary. Please consult SDS/EHS for authoritative guidance."
     #     return {"parsed": parsed, "raw_model_response": resp, "retrieved": retrieved}
 
+    # def query(self, raw_input: str) -> Dict:
+    #     user_content_items, retrieval_query = self.user_input_to_content(raw_input)
+
+    #     # 1. Retrieve documents (unchanged)
+    #     retrieved = search_documents(
+    #         retrieval_query,
+    #         self.corpus,
+    #         self.meta,
+    #         self.word_pair,
+    #         self.char_pair,
+    #         top_k=TOP_K
+    #     )
+
+    #     # 2. Compose messages and call OpenRouter (unchanged)
+    #     messages = compose_messages(
+    #         SYSTEM_PROMPT,
+    #         retrieved,
+    #         FEW_SHOT_EXAMPLES,
+    #         user_content_items,
+    #         self.chat_history
+    #     )
+
+    #     resp = call_openrouter(messages)
+
+    #     # 3. Extract the model's response
+    #     try:
+    #         assistant_content = resp["choices"][0]["message"]["content"]
+
+    #         # Handle cases where content is returned as a list
+    #         if isinstance(assistant_content, list):
+    #             assistant_content = "\n".join(
+    #                 item.get("text", "")
+    #                 for item in assistant_content
+    #                 if isinstance(item, dict) and item.get("type") == "text"
+    #             )
+
+    #         if not isinstance(assistant_content, str):
+    #             assistant_content = str(assistant_content)
+
+    #     except (KeyError, IndexError, TypeError) as e:
+    #         raise RuntimeError(
+    #             f"Invalid response structure from OpenRouter: {e}"
+    #         )
+
+    #     assistant_content = assistant_content.strip()
+
+    #     # 4. Update conversation history
+    #     self.chat_history.append({
+    #         "role": "user",
+    #         "content": user_content_items
+    #     })
+
+    #     self.chat_history.append({
+    #         "role": "assistant",
+    #         "content": assistant_content
+    #     })
+
+    #     # 5. JSON parsing
+    #     parsed = None
+
+    #     # Remove Markdown code fences if the model included them
+    #     cleaned_content = assistant_content
+
+    #     if cleaned_content.startswith("```"):
+    #         cleaned_content = re.sub(
+    #             r"^```[^\n]*\n?",
+    #             "",
+    #             cleaned_content
+    #         )
+    #         cleaned_content = re.sub(
+    #             r"\s*```\s*$",
+    #             "",
+    #             cleaned_content
+    #         )
+
+    #     # First attempt: parse the entire response directly
+    #     try:
+    #         parsed = json.loads(cleaned_content)
+
+    #     except json.JSONDecodeError:
+
+    #         # Second attempt: extract a JSON object from surrounding text
+    #         # This handles cases where the model adds explanations
+    #         # before or after its JSON response.
+
+    #         for start in range(len(cleaned_content)):
+
+    #             if cleaned_content[start] != "{":
+    #                 continue
+
+    #             depth = 0
+    #             in_string = False
+    #             escaped = False
+
+    #             for pos in range(start, len(cleaned_content)):
+    #                 char = cleaned_content[pos]
+
+    #                 if in_string:
+    #                     if escaped:
+    #                         escaped = False
+    #                     elif char == "\\":
+    #                         escaped = True
+    #                     elif char == '"':
+    #                         in_string = False
+
+    #                 else:
+    #                     if char == '"':
+    #                         in_string = True
+
+    #                     elif char == "{":
+    #                         depth += 1
+
+    #                     elif char == "}":
+    #                         depth -= 1
+
+    #                         if depth == 0:
+    #                             candidate = cleaned_content[start:pos + 1]
+
+    #                             try:
+    #                                 parsed = json.loads(candidate)
+    #                                 break
+    #                             except json.JSONDecodeError:
+    #                                 break
+
+    #             if parsed is not None:
+    #                 break
+
+    #     # 6. Validate and normalize the parsed JSON
+    #     if not isinstance(parsed, dict):
+
+    #         # Do NOT discard the model's actual response.
+    #         # Preserve it for display instead of showing a generic fallback.
+
+    #         parsed = {
+    #             "hazards": [],
+    #             "ppe_required": [],
+    #             "ppe_recommended": [],
+    #             "immediate_actions": [],
+    #             "safer_substitutes": [],
+    #             "citations": [],
+    #             "confidence": "low",
+    #             "explain_short": (
+    #                 "The response could not be parsed into the expected "
+    #                 "structured JSON format."
+    #             ),
+    #             "official_response": (
+    #                 assistant_content
+    #                 if assistant_content
+    #                 else "The model returned an empty response. Please try again."
+    #             )
+    #         }
+
+    #     else:
+    #         # Make sure all list fields have valid list structures
+    #         list_fields = [
+    #             "hazards",
+    #             "ppe_required",
+    #             "ppe_recommended",
+    #             "immediate_actions",
+    #             "safer_substitutes",
+    #             "citations"
+    #         ]
+
+    #         for field in list_fields:
+    #             value = parsed.get(field, [])
+
+    #             if isinstance(value, list):
+    #                 parsed[field] = [
+    #                     str(item).strip()
+    #                     for item in value
+    #                     if item is not None and str(item).strip()
+    #                 ]
+
+    #             elif isinstance(value, str) and value.strip():
+    #                 parsed[field] = [value.strip()]
+
+    #             else:
+    #                 parsed[field] = []
+
+    #         # Validate confidence
+    #         if parsed.get("confidence") not in ["high", "medium", "low"]:
+    #             parsed["confidence"] = "low"
+
+    #         # Validate short explanation
+    #         if not isinstance(parsed.get("explain_short"), str):
+    #             parsed["explain_short"] = ""
+
+    #         # 7. Ensure official_response exists
+    #         official_response = parsed.get("official_response")
+
+    #         if isinstance(official_response, str) and official_response.strip():
+    #             pass
+
+    #         elif official_response is not None:
+    #             parsed["official_response"] = json.dumps(
+    #                 official_response,
+    #                 ensure_ascii=False
+    #             )
+
+    #         else:
+    #             # If the model provided structured information but omitted
+    #             # official_response, generate a paragraph from those fields.
+
+    #             has_structured_content = any(
+    #                 parsed[field]
+    #                 for field in [
+    #                     "hazards",
+    #                     "ppe_required",
+    #                     "ppe_recommended",
+    #                     "immediate_actions",
+    #                     "safer_substitutes"
+    #                 ]
+    #             ) or bool(parsed["explain_short"])
+
+    #             if has_structured_content:
+    #                 parsed["official_response"] = (
+    #                     synthesize_paragraph_from_struct(parsed)
+    #                 )
+    #             else:
+    #                 parsed["official_response"] = (
+    #                     assistant_content
+    #                     if assistant_content
+    #                     else "The model did not provide a usable response."
+    #                 )
+
+    #     # 8. Return results in the original format expected by Streamlit
+    #     return {
+    #         "parsed": parsed,
+    #         "raw_model_response": resp,
+    #         "retrieved": retrieved
+    #     }
+
+
     def query(self, raw_input: str) -> Dict:
+        # 1. Retrieve documents (unchanged)
         user_content_items, retrieval_query = self.user_input_to_content(raw_input)
 
-        # 1. Retrieve documents (unchanged)
         retrieved = search_documents(
             retrieval_query,
             self.corpus,
@@ -630,114 +863,169 @@ class LabSafetyAssistantV3:
 
         resp = call_openrouter(messages)
 
-        # 3. Extract the model's response
+        # 3. Extract response and completion status
         try:
-            assistant_content = resp["choices"][0]["message"]["content"]
+            choice = resp["choices"][0]
+            message = choice.get("message", {})
+            assistant_content = message.get("content", "")
 
-            # Handle cases where content is returned as a list
-            if isinstance(assistant_content, list):
-                assistant_content = "\n".join(
-                    item.get("text", "")
-                    for item in assistant_content
-                    if isinstance(item, dict) and item.get("type") == "text"
-                )
-
-            if not isinstance(assistant_content, str):
-                assistant_content = str(assistant_content)
+            finish_reason = choice.get("finish_reason")
+            native_finish_reason = choice.get("native_finish_reason")
 
         except (KeyError, IndexError, TypeError) as e:
             raise RuntimeError(
-                f"Invalid response structure from OpenRouter: {e}"
+                f"Invalid OpenRouter response structure: {e}"
             )
+
+        # Handle text returned as a list
+        if isinstance(assistant_content, list):
+            assistant_content = "\n".join(
+                item.get("text", "")
+                for item in assistant_content
+                if isinstance(item, dict)
+                and item.get("type") == "text"
+            )
+
+        if not isinstance(assistant_content, str):
+            assistant_content = str(assistant_content)
 
         assistant_content = assistant_content.strip()
 
-        # 4. Update conversation history
-        self.chat_history.append({
-            "role": "user",
-            "content": user_content_items
-        })
+        # 4. Helper function: extract a complete JSON object
+        def extract_json_object(text):
 
-        self.chat_history.append({
-            "role": "assistant",
-            "content": assistant_content
-        })
+            if not text:
+                return None
 
-        # 5. JSON parsing
-        parsed = None
+            cleaned = text.strip()
 
-        # Remove Markdown code fences if the model included them
-        cleaned_content = assistant_content
-
-        if cleaned_content.startswith("```"):
-            cleaned_content = re.sub(
-                r"^```[^\n]*\n?",
+            # Remove Markdown code fences
+            cleaned = re.sub(
+                r"^\s*```(?:json)?\s*",
                 "",
-                cleaned_content
+                cleaned,
+                flags=re.IGNORECASE
             )
-            cleaned_content = re.sub(
+
+            cleaned = re.sub(
                 r"\s*```\s*$",
                 "",
-                cleaned_content
+                cleaned
             )
 
-        # First attempt: parse the entire response directly
-        try:
-            parsed = json.loads(cleaned_content)
+            # First attempt: parse the entire response
+            try:
+                result = json.loads(cleaned)
 
-        except json.JSONDecodeError:
+                if isinstance(result, dict):
+                    return result
 
-            # Second attempt: extract a JSON object from surrounding text
-            # This handles cases where the model adds explanations
-            # before or after its JSON response.
+            except json.JSONDecodeError:
+                pass
 
-            for start in range(len(cleaned_content)):
+            # Second attempt: find a complete JSON object
+            start = cleaned.find("{")
 
-                if cleaned_content[start] != "{":
-                    continue
+            if start == -1:
+                return None
 
-                depth = 0
-                in_string = False
-                escaped = False
+            depth = 0
+            in_string = False
+            escaped = False
 
-                for pos in range(start, len(cleaned_content)):
-                    char = cleaned_content[pos]
+            for pos in range(start, len(cleaned)):
 
-                    if in_string:
-                        if escaped:
-                            escaped = False
-                        elif char == "\\":
-                            escaped = True
-                        elif char == '"':
-                            in_string = False
+                char = cleaned[pos]
 
-                    else:
-                        if char == '"':
-                            in_string = True
+                if in_string:
 
-                        elif char == "{":
-                            depth += 1
+                    if escaped:
+                        escaped = False
 
-                        elif char == "}":
-                            depth -= 1
+                    elif char == "\\":
+                        escaped = True
 
-                            if depth == 0:
-                                candidate = cleaned_content[start:pos + 1]
+                    elif char == '"':
+                        in_string = False
 
-                                try:
-                                    parsed = json.loads(candidate)
-                                    break
-                                except json.JSONDecodeError:
-                                    break
+                else:
 
-                if parsed is not None:
-                    break
+                    if char == '"':
+                        in_string = True
 
-        # 6. Validate and normalize the parsed JSON
-        if not isinstance(parsed, dict):
+                    elif char == "{":
+                        depth += 1
 
-            # Do NOT discard the model's actual response.
-            # Preserve it for display instead of showing a generic fallback.
+                    elif char == "}":
+                        depth -= 1
+
+                        if depth == 0:
+                            candidate = cleaned[start:pos + 1]
+
+                            try:
+                                result = json.loads(candidate)
+
+                                if isinstance(result, dict):
+                                    return result
+
+                            except json.JSONDecodeError:
+                                return None
+
+            # No complete JSON object was found
+            return None
+
+        # 5. Parse the model response
+        parsed = extract_json_object(assistant_content)
+
+        json_valid = isinstance(parsed, dict)
+
+        # Determine whether the model hit its output-token limit
+        finish_values = {
+            str(finish_reason).lower(),
+            str(native_finish_reason).lower()
+        }
+
+        output_limit_reached = bool(
+            finish_values.intersection({
+                "length",
+                "max_tokens",
+                "max_output_tokens"
+            })
+        )
+
+        # 6. Handle invalid or incomplete JSON safely
+        if not json_valid:
+
+            if output_limit_reached:
+
+                explain = (
+                    "The response was cut off before the safety "
+                    "assessment could be completed."
+                )
+
+                official = (
+                    "The model reached its output-token limit before "
+                    "finishing its structured response. Please submit "
+                    "your question again. Do not rely on the incomplete "
+                    "response; verify safety information using the "
+                    "relevant SDS and consult your laboratory supervisor "
+                    "or EHS personnel."
+                )
+
+            else:
+
+                explain = (
+                    "The model did not return a complete, valid "
+                    "structured response."
+                )
+
+                official = (
+                    "I could not format the model's response into the "
+                    "required safety-summary structure. Please try "
+                    "submitting your question again. Until a complete "
+                    "answer is available, consult the relevant SDS "
+                    "and your laboratory supervisor or EHS personnel."
+                )
 
             parsed = {
                 "hazards": [],
@@ -747,19 +1035,13 @@ class LabSafetyAssistantV3:
                 "safer_substitutes": [],
                 "citations": [],
                 "confidence": "low",
-                "explain_short": (
-                    "The response could not be parsed into the expected "
-                    "structured JSON format."
-                ),
-                "official_response": (
-                    assistant_content
-                    if assistant_content
-                    else "The model returned an empty response. Please try again."
-                )
+                "explain_short": explain,
+                "official_response": official
             }
 
         else:
-            # Make sure all list fields have valid list structures
+
+            # 7. Normalize list fields
             list_fields = [
                 "hazards",
                 "ppe_required",
@@ -770,9 +1052,11 @@ class LabSafetyAssistantV3:
             ]
 
             for field in list_fields:
+
                 value = parsed.get(field, [])
 
                 if isinstance(value, list):
+
                     parsed[field] = [
                         str(item).strip()
                         for item in value
@@ -780,20 +1064,29 @@ class LabSafetyAssistantV3:
                     ]
 
                 elif isinstance(value, str) and value.strip():
+
                     parsed[field] = [value.strip()]
 
                 else:
+
                     parsed[field] = []
 
-            # Validate confidence
-            if parsed.get("confidence") not in ["high", "medium", "low"]:
-                parsed["confidence"] = "low"
+            # Normalize confidence
+            confidence = str(
+                parsed.get("confidence", "low")
+            ).lower().strip()
 
-            # Validate short explanation
+            parsed["confidence"] = (
+                confidence
+                if confidence in ["high", "medium", "low"]
+                else "low"
+            )
+
+            # Normalize explain_short
             if not isinstance(parsed.get("explain_short"), str):
                 parsed["explain_short"] = ""
 
-            # 7. Ensure official_response exists
+            # 8. Ensure official_response exists
             official_response = parsed.get("official_response")
 
             if isinstance(official_response, str) and official_response.strip():
@@ -806,10 +1099,8 @@ class LabSafetyAssistantV3:
                 )
 
             else:
-                # If the model provided structured information but omitted
-                # official_response, generate a paragraph from those fields.
 
-                has_structured_content = any(
+                has_content = any(
                     parsed[field]
                     for field in [
                         "hazards",
@@ -820,23 +1111,49 @@ class LabSafetyAssistantV3:
                     ]
                 ) or bool(parsed["explain_short"])
 
-                if has_structured_content:
+                if has_content:
+
                     parsed["official_response"] = (
                         synthesize_paragraph_from_struct(parsed)
                     )
+
                 else:
+
                     parsed["official_response"] = (
-                        assistant_content
-                        if assistant_content
-                        else "The model did not provide a usable response."
+                        "The model returned an empty safety assessment. "
+                        "Please try again and consult EHS if necessary."
                     )
 
-        # 8. Return results in the original format expected by Streamlit
+        # 9. Update conversation history
+        self.chat_history.append({
+            "role": "user",
+            "content": user_content_items
+        })
+
+        # Do not feed incomplete JSON into the next conversation turn.
+        if json_valid:
+
+            self.chat_history.append({
+                "role": "assistant",
+                "content": assistant_content
+            })
+
+        else:
+
+            self.chat_history.append({
+                "role": "assistant",
+                "content": json.dumps(parsed, ensure_ascii=False)
+            })
+
+        # 10. Return results in the format expected by Streamlit
         return {
             "parsed": parsed,
             "raw_model_response": resp,
-            "retrieved": retrieved
+            "retrieved": retrieved,
+            "finish_reason": finish_reason,
+            "json_valid": json_valid
         }
+
 
 
 # --------------------
