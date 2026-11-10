@@ -583,28 +583,261 @@ class LabSafetyAssistantV3:
         else:
             return [{"type": "text", "text": raw_input}], raw_input
 
+    # def query(self, raw_input: str) -> Dict:
+    #     user_content_items, retrieval_query = self.user_input_to_content(raw_input)
+    #     retrieved = search_documents(retrieval_query, self.corpus, self.meta, self.word_pair, self.char_pair, top_k=TOP_K)
+    #     messages = compose_messages(SYSTEM_PROMPT, retrieved, FEW_SHOT_EXAMPLES, user_content_items, self.chat_history)
+    #     resp = call_openrouter(messages)
+    #     assistant_content = resp["choices"][0]["message"]["content"]
+    #     # push user message and assistant reply into history for next turns
+    #     self.chat_history.append({"role": "user", "content": user_content_items})
+    #     # store assistant reply as string content (keeps history readable)
+    #     self.chat_history.append({"role": "assistant", "content": assistant_content})
+    #     # parse JSON if possible
+    #     try:
+    #         parsed = json.loads(assistant_content)
+    #     except Exception:
+    #         parsed = {"raw_text": assistant_content}
+    #     # ensure official_response
+    #     if isinstance(parsed, dict) and "official_response" not in parsed:
+    #         if any(k in parsed for k in ["hazards", "ppe_required", "explain_short"]):
+    #             parsed["official_response"] = synthesize_paragraph_from_struct(parsed)
+    #         else:
+    #             parsed["official_response"] = "I could not format a paragraph summary. Please consult SDS/EHS for authoritative guidance."
+    #     return {"parsed": parsed, "raw_model_response": resp, "retrieved": retrieved}
+
     def query(self, raw_input: str) -> Dict:
         user_content_items, retrieval_query = self.user_input_to_content(raw_input)
-        retrieved = search_documents(retrieval_query, self.corpus, self.meta, self.word_pair, self.char_pair, top_k=TOP_K)
-        messages = compose_messages(SYSTEM_PROMPT, retrieved, FEW_SHOT_EXAMPLES, user_content_items, self.chat_history)
+
+        # 1. Retrieve documents (unchanged)
+        retrieved = search_documents(
+            retrieval_query,
+            self.corpus,
+            self.meta,
+            self.word_pair,
+            self.char_pair,
+            top_k=TOP_K
+        )
+
+        # 2. Compose messages and call OpenRouter (unchanged)
+        messages = compose_messages(
+            SYSTEM_PROMPT,
+            retrieved,
+            FEW_SHOT_EXAMPLES,
+            user_content_items,
+            self.chat_history
+        )
+
         resp = call_openrouter(messages)
-        assistant_content = resp["choices"][0]["message"]["content"]
-        # push user message and assistant reply into history for next turns
-        self.chat_history.append({"role": "user", "content": user_content_items})
-        # store assistant reply as string content (keeps history readable)
-        self.chat_history.append({"role": "assistant", "content": assistant_content})
-        # parse JSON if possible
+
+        # 3. Extract the model's response
         try:
-            parsed = json.loads(assistant_content)
-        except Exception:
-            parsed = {"raw_text": assistant_content}
-        # ensure official_response
-        if isinstance(parsed, dict) and "official_response" not in parsed:
-            if any(k in parsed for k in ["hazards", "ppe_required", "explain_short"]):
-                parsed["official_response"] = synthesize_paragraph_from_struct(parsed)
+            assistant_content = resp["choices"][0]["message"]["content"]
+
+            # Handle cases where content is returned as a list
+            if isinstance(assistant_content, list):
+                assistant_content = "\n".join(
+                    item.get("text", "")
+                    for item in assistant_content
+                    if isinstance(item, dict) and item.get("type") == "text"
+                )
+
+            if not isinstance(assistant_content, str):
+                assistant_content = str(assistant_content)
+
+        except (KeyError, IndexError, TypeError) as e:
+            raise RuntimeError(
+                f"Invalid response structure from OpenRouter: {e}"
+            )
+
+        assistant_content = assistant_content.strip()
+
+        # 4. Update conversation history
+        self.chat_history.append({
+            "role": "user",
+            "content": user_content_items
+        })
+
+        self.chat_history.append({
+            "role": "assistant",
+            "content": assistant_content
+        })
+
+        # 5. JSON parsing
+        parsed = None
+
+        # Remove Markdown code fences if the model included them
+        cleaned_content = assistant_content
+
+        if cleaned_content.startswith("```"):
+            cleaned_content = re.sub(
+                r"^```[^\n]*\n?",
+                "",
+                cleaned_content
+            )
+            cleaned_content = re.sub(
+                r"\s*```\s*$",
+                "",
+                cleaned_content
+            )
+
+        # First attempt: parse the entire response directly
+        try:
+            parsed = json.loads(cleaned_content)
+
+        except json.JSONDecodeError:
+
+            # Second attempt: extract a JSON object from surrounding text
+            # This handles cases where the model adds explanations
+            # before or after its JSON response.
+
+            for start in range(len(cleaned_content)):
+
+                if cleaned_content[start] != "{":
+                    continue
+
+                depth = 0
+                in_string = False
+                escaped = False
+
+                for pos in range(start, len(cleaned_content)):
+                    char = cleaned_content[pos]
+
+                    if in_string:
+                        if escaped:
+                            escaped = False
+                        elif char == "\\":
+                            escaped = True
+                        elif char == '"':
+                            in_string = False
+
+                    else:
+                        if char == '"':
+                            in_string = True
+
+                        elif char == "{":
+                            depth += 1
+
+                        elif char == "}":
+                            depth -= 1
+
+                            if depth == 0:
+                                candidate = cleaned_content[start:pos + 1]
+
+                                try:
+                                    parsed = json.loads(candidate)
+                                    break
+                                except json.JSONDecodeError:
+                                    break
+
+                if parsed is not None:
+                    break
+
+        # 6. Validate and normalize the parsed JSON
+        if not isinstance(parsed, dict):
+
+            # Do NOT discard the model's actual response.
+            # Preserve it for display instead of showing a generic fallback.
+
+            parsed = {
+                "hazards": [],
+                "ppe_required": [],
+                "ppe_recommended": [],
+                "immediate_actions": [],
+                "safer_substitutes": [],
+                "citations": [],
+                "confidence": "low",
+                "explain_short": (
+                    "The response could not be parsed into the expected "
+                    "structured JSON format."
+                ),
+                "official_response": (
+                    assistant_content
+                    if assistant_content
+                    else "The model returned an empty response. Please try again."
+                )
+            }
+
+        else:
+            # Make sure all list fields have valid list structures
+            list_fields = [
+                "hazards",
+                "ppe_required",
+                "ppe_recommended",
+                "immediate_actions",
+                "safer_substitutes",
+                "citations"
+            ]
+
+            for field in list_fields:
+                value = parsed.get(field, [])
+
+                if isinstance(value, list):
+                    parsed[field] = [
+                        str(item).strip()
+                        for item in value
+                        if item is not None and str(item).strip()
+                    ]
+
+                elif isinstance(value, str) and value.strip():
+                    parsed[field] = [value.strip()]
+
+                else:
+                    parsed[field] = []
+
+            # Validate confidence
+            if parsed.get("confidence") not in ["high", "medium", "low"]:
+                parsed["confidence"] = "low"
+
+            # Validate short explanation
+            if not isinstance(parsed.get("explain_short"), str):
+                parsed["explain_short"] = ""
+
+            # 7. Ensure official_response exists
+            official_response = parsed.get("official_response")
+
+            if isinstance(official_response, str) and official_response.strip():
+                pass
+
+            elif official_response is not None:
+                parsed["official_response"] = json.dumps(
+                    official_response,
+                    ensure_ascii=False
+                )
+
             else:
-                parsed["official_response"] = "I could not format a paragraph summary. Please consult SDS/EHS for authoritative guidance."
-        return {"parsed": parsed, "raw_model_response": resp, "retrieved": retrieved}
+                # If the model provided structured information but omitted
+                # official_response, generate a paragraph from those fields.
+
+                has_structured_content = any(
+                    parsed[field]
+                    for field in [
+                        "hazards",
+                        "ppe_required",
+                        "ppe_recommended",
+                        "immediate_actions",
+                        "safer_substitutes"
+                    ]
+                ) or bool(parsed["explain_short"])
+
+                if has_structured_content:
+                    parsed["official_response"] = (
+                        synthesize_paragraph_from_struct(parsed)
+                    )
+                else:
+                    parsed["official_response"] = (
+                        assistant_content
+                        if assistant_content
+                        else "The model did not provide a usable response."
+                    )
+
+        # 8. Return results in the original format expected by Streamlit
+        return {
+            "parsed": parsed,
+            "raw_model_response": resp,
+            "retrieved": retrieved
+        }
+
 
 # --------------------
 # Run loop
